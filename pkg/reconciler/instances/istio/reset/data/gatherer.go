@@ -3,11 +3,15 @@ package data
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"strings"
 
 	"github.com/avast/retry-go"
+	iopv1alpha1 "istio.io/istio/operator/pkg/apis/istio/v1alpha1"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
 )
 
@@ -19,6 +23,8 @@ type Gatherer interface {
 
 	// GetPodsWithDifferentImage than the passed expected image to filter them out from the pods list.
 	GetPodsWithDifferentImage(inputPodsList v1.PodList, image ExpectedImage) (outputPodsList v1.PodList)
+
+	GetIstioOperator(dynamicClient dynamic.Interface) (*iopv1alpha1.IstioOperator, bool, error)
 }
 
 // DefaultGatherer that gets pods from the Kubernetes cluster
@@ -76,6 +82,27 @@ func (i *DefaultGatherer) GetPodsWithDifferentImage(inputPodsList v1.PodList, im
 	}
 
 	return
+}
+
+func (d *DefaultGatherer) GetIstioOperator(dynamicClient dynamic.Interface) (*iopv1alpha1.IstioOperator, bool, error) {
+	operators := []iopv1alpha1.IstioOperator{}
+	list, err := dynamicClient.Resource(schema.GroupVersionResource{Group: "install.istio.io", Version: "v1alpha1", Resource: "istiooperators"}).List(context.Background(), "installed-state-default-operator", metav1.GetOptions{})
+	if err != nil {
+		return nil, false, err
+	}
+	if len(list.Items) == 0 {
+		return nil, false, nil
+	}
+	if len(list.Items) > 1 {
+		return nil, true, errors.New("more than one IstioOperator found")
+	}
+	toUnmarshal, err := list.MarshalJSON()
+	if err != nil {
+		return nil, false, err
+	}
+	json.Unmarshal(toUnmarshal, &operators)
+
+	return &operators[0], true, nil
 }
 
 // getIstioSidecarNamesFromAnnotations gets all container names in pod annoted with podAnnotations that are Istio sidecars

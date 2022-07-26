@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/coreos/go-semver/semver"
+	"github.com/go-git/go-git/v5/plumbing/transport/client"
 	"github.com/kyma-incubator/reconciler/pkg/reconciler/kubernetes"
 	"go.uber.org/zap"
 
@@ -12,6 +13,7 @@ import (
 	"github.com/kyma-incubator/reconciler/pkg/reconciler/instances/istio/actions"
 	"github.com/kyma-incubator/reconciler/pkg/reconciler/service"
 	"github.com/pkg/errors"
+	istioOperator "istio.io/api/operator/v1alpha1"
 )
 
 const (
@@ -337,4 +339,9 @@ func unDeployIstioRelatedResources(context context.Context, manifest string, cli
 	}
 
 	return nil
+}
+
+func compareIstioOperator(){
+	operator := istioOperator.IstioOperatorSpec{}
+	client.
 }
