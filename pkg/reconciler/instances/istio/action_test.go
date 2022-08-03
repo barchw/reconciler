@@ -253,12 +253,11 @@ func Test_ReconcileAction_Run(t *testing.T) {
 		provider.AssertNotCalled(t, "RenderManifest", mock.AnythingOfType("*chart.Component"))
 		performer.AssertNotCalled(t, "Version", mock.AnythingOfType("string"), mock.AnythingOfType("*zap.SugaredLogger"))
 		performer.AssertNotCalled(t, "Install", mock.AnythingOfType("string"), mock.AnythingOfType("string"))
-		performer.AssertNotCalled(t, "PatchMutatingWebhook", mock.AnythingOfType("context.Context"), mock.AnythingOfType("kubernetes.Client"), mock.AnythingOfType("chart.Factory"), mock.AnythingOfType("string"), mock.AnythingOfType("string"), mock.AnythingOfType("*zap.SugaredLogger"))
-		performer.AssertNotCalled(t, "LabelNamespaces", mock.AnythingOfType("context.Context"), mock.AnythingOfType("kubernetes.Client"), mock.AnythingOfType("chart.Factory"), mock.AnythingOfType("string"), mock.AnythingOfType("string"), mock.AnythingOfType("*zap.SugaredLogger"))
+		performer.AssertNotCalled(t, "PatchMutatingWebhook", mock.AnythingOfType("context.Context"), mock.AnythingOfType("kubernetes.Client"), mock.AnythingOfType("*zap.SugaredLogger"))
 		performer.AssertNotCalled(t, "Update", mock.AnythingOfType("string"), mock.AnythingOfType("string"), mock.AnythingOfType("*zap.SugaredLogger"))
 	})
 
-	t.Run("should not return error when istio install, webhook patch and label namespaces were successful", func(t *testing.T) {
+	t.Run("should not return error when both istio install and webhook patch were successful", func(t *testing.T) {
 		// given
 		factory := chartmocks.Factory{}
 		provider := chartmocks.Provider{}
@@ -274,8 +273,7 @@ func Test_ReconcileAction_Run(t *testing.T) {
 		performer := actionsmocks.IstioPerformer{}
 		performer.On("Version", mock.Anything, mock.AnythingOfType("string"), mock.AnythingOfType("string"), mock.AnythingOfType("string"), mock.AnythingOfType("*zap.SugaredLogger")).Return(noIstioOnTheCluster, nil)
 		performer.On("Install", mock.AnythingOfType("string"), mock.AnythingOfType("string"), mock.AnythingOfType("string"), actionContext.Logger).Return(nil)
-		performer.On("PatchMutatingWebhook", actionContext.Context, actionContext.KubeClient, actionContext.WorkspaceFactory, "version", "component", actionContext.Logger).Return(nil)
-		performer.On("LabelNamespaces", actionContext.Context, actionContext.KubeClient, actionContext.WorkspaceFactory, "version", "component", actionContext.Logger).Return(nil)
+		performer.On("PatchMutatingWebhook", actionContext.Context, actionContext.KubeClient, actionContext.Logger).Return(nil)
 		action := MainReconcileAction{performerCreatorFn(&performer)}
 
 		// when
@@ -287,11 +285,10 @@ func Test_ReconcileAction_Run(t *testing.T) {
 		performer.AssertCalled(t, "Version", mock.Anything, mock.AnythingOfType("string"), mock.AnythingOfType("string"), mock.AnythingOfType("string"), mock.AnythingOfType("*zap.SugaredLogger"))
 		performer.AssertCalled(t, "Install", mock.AnythingOfType("string"), mock.AnythingOfType("string"), mock.AnythingOfType("string"), mock.AnythingOfType("*zap.SugaredLogger"))
 		performer.AssertNotCalled(t, "Update", mock.AnythingOfType("string"), mock.AnythingOfType("string"), mock.AnythingOfType("*zap.SugaredLogger"))
-		performer.AssertCalled(t, "PatchMutatingWebhook", actionContext.Context, actionContext.KubeClient, actionContext.WorkspaceFactory, "version", "component", actionContext.Logger)
-		performer.AssertCalled(t, "LabelNamespaces", actionContext.Context, actionContext.KubeClient, actionContext.WorkspaceFactory, "version", "component", actionContext.Logger)
+		performer.AssertCalled(t, "PatchMutatingWebhook", actionContext.Context, actionContext.KubeClient, actionContext.Logger)
 	})
 
-	t.Run("should return an error when istio installation, webhook patch and label namespaces failed", func(t *testing.T) {
+	t.Run("should return an error when both istio installation and webhook patch failed", func(t *testing.T) {
 		// given
 		factory := chartmocks.Factory{}
 		provider := chartmocks.Provider{}
@@ -300,8 +297,7 @@ func Test_ReconcileAction_Run(t *testing.T) {
 		actionContext := newFakeServiceContext(&factory, &provider, kubeClient)
 		performer := actionsmocks.IstioPerformer{}
 		performer.On("Version", mock.Anything, mock.AnythingOfType("string"), mock.AnythingOfType("string"), mock.AnythingOfType("string"), mock.AnythingOfType("*zap.SugaredLogger")).Return(actions.IstioStatus{}, errors.New("Version error"))
-		performer.On("PatchMutatingWebhook", actionContext.Context, actionContext.KubeClient, actionContext.WorkspaceFactory, "version", "component", actionContext.Logger).Return(errors.New("PatchMutatingWebhook error"))
-		performer.On("LabelNamespaces", actionContext.Context, actionContext.KubeClient, actionContext.WorkspaceFactory, "version", "component", actionContext.Logger).Return(errors.New("LabelNamespaces error"))
+		performer.On("PatchMutatingWebhook", actionContext.Context, actionContext.KubeClient, actionContext.Logger).Return(errors.New("PatchMutatingWebhook error"))
 		action := MainReconcileAction{performerCreatorFn(&performer)}
 
 		// when
@@ -311,14 +307,13 @@ func Test_ReconcileAction_Run(t *testing.T) {
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "Version error")
 		require.Contains(t, err.Error(), "PatchMutatingWebhook error")
-		require.Contains(t, err.Error(), "LabelNamespaces error")
 		provider.AssertCalled(t, "RenderManifest", mock.AnythingOfType("*chart.Component"))
 		performer.AssertCalled(t, "Version", mock.Anything, mock.AnythingOfType("string"), mock.AnythingOfType("string"), mock.AnythingOfType("string"), mock.AnythingOfType("*zap.SugaredLogger"))
 		performer.AssertNotCalled(t, "Install", mock.AnythingOfType("string"), mock.AnythingOfType("string"))
 		performer.AssertNotCalled(t, "Update", mock.AnythingOfType("string"), mock.AnythingOfType("string"), mock.AnythingOfType("*zap.SugaredLogger"))
 	})
 
-	t.Run("should return an error when istio installation failed but webhook patch and label namespaces were successful", func(t *testing.T) {
+	t.Run("should return an error when istio installation failed and webhook patch was successful", func(t *testing.T) {
 		// given
 		factory := chartmocks.Factory{}
 		provider := chartmocks.Provider{}
@@ -334,8 +329,7 @@ func Test_ReconcileAction_Run(t *testing.T) {
 		}
 		performer.On("Version", mock.Anything, mock.AnythingOfType("string"), mock.AnythingOfType("string"), mock.AnythingOfType("string"), actionContext.Logger).Return(noIstioOnTheCluster, nil)
 		performer.On("Install", actionContext.KubeClient.Kubeconfig(), mock.AnythingOfType("string"), mock.AnythingOfType("string"), actionContext.Logger).Return(errors.New("Istio Install error"))
-		performer.On("PatchMutatingWebhook", actionContext.Context, actionContext.KubeClient, actionContext.WorkspaceFactory, "version", "component", actionContext.Logger).Return(nil)
-		performer.On("LabelNamespaces", actionContext.Context, actionContext.KubeClient, actionContext.WorkspaceFactory, "version", "component", actionContext.Logger).Return(nil)
+		performer.On("PatchMutatingWebhook", actionContext.Context, actionContext.KubeClient, actionContext.Logger).Return(nil)
 		action := MainReconcileAction{performerCreatorFn(&performer)}
 
 		// when
@@ -348,11 +342,10 @@ func Test_ReconcileAction_Run(t *testing.T) {
 		performer.AssertCalled(t, "Version", mock.Anything, mock.AnythingOfType("string"), mock.AnythingOfType("string"), mock.AnythingOfType("string"), mock.AnythingOfType("*zap.SugaredLogger"))
 		performer.AssertCalled(t, "Install", mock.Anything, mock.Anything, mock.Anything, mock.AnythingOfType("*zap.SugaredLogger"))
 		performer.AssertNotCalled(t, "Update", mock.AnythingOfType("string"), mock.AnythingOfType("string"), mock.AnythingOfType("*zap.SugaredLogger"))
-		performer.AssertCalled(t, "PatchMutatingWebhook", actionContext.Context, actionContext.KubeClient, actionContext.WorkspaceFactory, "version", "component", actionContext.Logger)
-		performer.AssertCalled(t, "LabelNamespaces", actionContext.Context, actionContext.KubeClient, actionContext.WorkspaceFactory, "version", "component", actionContext.Logger)
+		performer.AssertCalled(t, "PatchMutatingWebhook", actionContext.Context, actionContext.KubeClient, actionContext.Logger)
 	})
 
-	t.Run("should return an error when istio installation and namespaces label were successful but webhook patch failed", func(t *testing.T) {
+	t.Run("should return an error when istio installation was successful and webhook patch failed", func(t *testing.T) {
 		// given
 		factory := chartmocks.Factory{}
 		provider := chartmocks.Provider{}
@@ -368,8 +361,7 @@ func Test_ReconcileAction_Run(t *testing.T) {
 		}
 		performer.On("Version", mock.Anything, mock.AnythingOfType("string"), mock.AnythingOfType("string"), mock.AnythingOfType("string"), actionContext.Logger).Return(noIstioOnTheCluster, nil)
 		performer.On("Install", actionContext.KubeClient.Kubeconfig(), mock.AnythingOfType("string"), mock.AnythingOfType("string"), actionContext.Logger).Return(nil)
-		performer.On("PatchMutatingWebhook", actionContext.Context, actionContext.KubeClient, actionContext.WorkspaceFactory, "version", "component", actionContext.Logger).Return(errors.New("PatchMutatingWebhook error"))
-		performer.On("LabelNamespaces", actionContext.Context, actionContext.KubeClient, actionContext.WorkspaceFactory, "version", "component", actionContext.Logger).Return(nil)
+		performer.On("PatchMutatingWebhook", actionContext.Context, actionContext.KubeClient, actionContext.Logger).Return(errors.New("PatchMutatingWebhook error"))
 		action := MainReconcileAction{performerCreatorFn(&performer)}
 
 		// when
@@ -382,45 +374,10 @@ func Test_ReconcileAction_Run(t *testing.T) {
 		performer.AssertCalled(t, "Version", mock.Anything, mock.AnythingOfType("string"), mock.AnythingOfType("string"), mock.AnythingOfType("string"), mock.AnythingOfType("*zap.SugaredLogger"))
 		performer.AssertCalled(t, "Install", mock.Anything, mock.Anything, mock.Anything, mock.AnythingOfType("*zap.SugaredLogger"))
 		performer.AssertNotCalled(t, "Update", mock.AnythingOfType("string"), mock.AnythingOfType("string"), mock.AnythingOfType("*zap.SugaredLogger"))
-		performer.AssertCalled(t, "PatchMutatingWebhook", actionContext.Context, actionContext.KubeClient, actionContext.WorkspaceFactory, "version", "component", actionContext.Logger)
-		performer.AssertCalled(t, "LabelNamespaces", actionContext.Context, actionContext.KubeClient, actionContext.WorkspaceFactory, "version", "component", actionContext.Logger)
+		performer.AssertCalled(t, "PatchMutatingWebhook", actionContext.Context, actionContext.KubeClient, actionContext.Logger)
 	})
 
-	t.Run("should return an error when istio installation and webhook patch were successful but namespaces label failed", func(t *testing.T) {
-		// given
-		factory := chartmocks.Factory{}
-		provider := chartmocks.Provider{}
-		provider.On("RenderManifest", mock.AnythingOfType("*chart.Component")).Return(&chart.Manifest{}, nil)
-		kubeClient := newFakeKubeClient()
-		actionContext := newFakeServiceContext(&factory, &provider, kubeClient)
-		performer := actionsmocks.IstioPerformer{}
-		noIstioOnTheCluster := actions.IstioStatus{
-			ClientVersion:    "1.0.0",
-			TargetVersion:    "1.0.0",
-			PilotVersion:     "",
-			DataPlaneVersion: "",
-		}
-		performer.On("Version", mock.Anything, mock.AnythingOfType("string"), mock.AnythingOfType("string"), mock.AnythingOfType("string"), actionContext.Logger).Return(noIstioOnTheCluster, nil)
-		performer.On("Install", actionContext.KubeClient.Kubeconfig(), mock.AnythingOfType("string"), mock.AnythingOfType("string"), actionContext.Logger).Return(nil)
-		performer.On("PatchMutatingWebhook", actionContext.Context, actionContext.KubeClient, actionContext.WorkspaceFactory, "version", "component", actionContext.Logger).Return(nil)
-		performer.On("LabelNamespaces", actionContext.Context, actionContext.KubeClient, actionContext.WorkspaceFactory, "version", "component", actionContext.Logger).Return(errors.New("LabelNamespaces error"))
-		action := MainReconcileAction{performerCreatorFn(&performer)}
-
-		// when
-		err := action.Run(actionContext)
-
-		// then
-		require.Error(t, err)
-		require.Contains(t, err.Error(), "LabelNamespaces error")
-		provider.AssertCalled(t, "RenderManifest", mock.AnythingOfType("*chart.Component"))
-		performer.AssertCalled(t, "Version", mock.Anything, mock.AnythingOfType("string"), mock.AnythingOfType("string"), mock.AnythingOfType("string"), mock.AnythingOfType("*zap.SugaredLogger"))
-		performer.AssertCalled(t, "Install", mock.Anything, mock.Anything, mock.Anything, mock.AnythingOfType("*zap.SugaredLogger"))
-		performer.AssertNotCalled(t, "Update", mock.AnythingOfType("string"), mock.AnythingOfType("string"), mock.AnythingOfType("*zap.SugaredLogger"))
-		performer.AssertCalled(t, "PatchMutatingWebhook", actionContext.Context, actionContext.KubeClient, actionContext.WorkspaceFactory, "version", "component", actionContext.Logger)
-		performer.AssertCalled(t, "LabelNamespaces", actionContext.Context, actionContext.KubeClient, actionContext.WorkspaceFactory, "version", "component", actionContext.Logger)
-	})
-
-	t.Run("should not return an error when istio update, webhook patch and label namespaces were successful", func(t *testing.T) {
+	t.Run("should not return an error when both istio update and webhook patch were successful", func(t *testing.T) {
 		// given
 		factory := chartmocks.Factory{}
 		provider := chartmocks.Provider{}
@@ -436,8 +393,7 @@ func Test_ReconcileAction_Run(t *testing.T) {
 		performer := actionsmocks.IstioPerformer{}
 		performer.On("Version", mock.Anything, mock.AnythingOfType("string"), mock.AnythingOfType("string"), mock.AnythingOfType("string"), mock.AnythingOfType("*zap.SugaredLogger")).Return(istioOnTheCluster, nil)
 		performer.On("Update", mock.AnythingOfType("string"), mock.AnythingOfType("string"), mock.AnythingOfType("string"), actionContext.Logger).Return(nil)
-		performer.On("PatchMutatingWebhook", actionContext.Context, actionContext.KubeClient, actionContext.WorkspaceFactory, "version", "component", actionContext.Logger).Return(nil)
-		performer.On("LabelNamespaces", actionContext.Context, actionContext.KubeClient, actionContext.WorkspaceFactory, "version", "component", actionContext.Logger).Return(nil)
+		performer.On("PatchMutatingWebhook", actionContext.Context, actionContext.KubeClient, actionContext.Logger).Return(nil)
 		action := MainReconcileAction{performerCreatorFn(&performer)}
 
 		// when
@@ -449,47 +405,10 @@ func Test_ReconcileAction_Run(t *testing.T) {
 		performer.AssertCalled(t, "Version", mock.Anything, mock.AnythingOfType("string"), mock.AnythingOfType("string"), mock.AnythingOfType("string"), mock.AnythingOfType("*zap.SugaredLogger"))
 		performer.AssertNotCalled(t, "Install", mock.AnythingOfType("string"), mock.AnythingOfType("string"), mock.AnythingOfType("string"), mock.AnythingOfType("*zap.SugaredLogger"))
 		performer.AssertCalled(t, "Update", mock.AnythingOfType("string"), mock.AnythingOfType("string"), mock.AnythingOfType("string"), mock.AnythingOfType("*zap.SugaredLogger"))
-		performer.AssertCalled(t, "PatchMutatingWebhook", actionContext.Context, actionContext.KubeClient, actionContext.WorkspaceFactory, "version", "component", actionContext.Logger)
-		performer.AssertCalled(t, "LabelNamespaces", actionContext.Context, actionContext.KubeClient, actionContext.WorkspaceFactory, "version", "component", actionContext.Logger)
+		performer.AssertCalled(t, "PatchMutatingWebhook", actionContext.Context, actionContext.KubeClient, actionContext.Logger)
 	})
 
-	t.Run("should not return an error when istio update, webhook patch and label namespaces failed", func(t *testing.T) {
-		// given
-		factory := chartmocks.Factory{}
-		provider := chartmocks.Provider{}
-		provider.On("RenderManifest", mock.AnythingOfType("*chart.Component")).Return(&chart.Manifest{}, nil)
-		kubeClient := newFakeKubeClient()
-		actionContext := newFakeServiceContext(&factory, &provider, kubeClient)
-		istioOnTheCluster := actions.IstioStatus{
-			ClientVersion:    "1.1.0",
-			TargetVersion:    "1.1.0",
-			PilotVersion:     "1.0.0",
-			DataPlaneVersion: "1.0.0",
-		}
-		performer := actionsmocks.IstioPerformer{}
-		performer.On("Version", mock.Anything, mock.AnythingOfType("string"), mock.AnythingOfType("string"), mock.AnythingOfType("string"), mock.AnythingOfType("*zap.SugaredLogger")).Return(istioOnTheCluster, nil)
-		performer.On("Update", mock.AnythingOfType("string"), mock.AnythingOfType("string"), mock.AnythingOfType("string"), actionContext.Logger).Return(errors.New("Istio Update error"))
-		performer.On("PatchMutatingWebhook", actionContext.Context, actionContext.KubeClient, actionContext.WorkspaceFactory, "version", "component", actionContext.Logger).Return(errors.New("PatchMutatingWebhook error"))
-		performer.On("LabelNamespaces", actionContext.Context, actionContext.KubeClient, actionContext.WorkspaceFactory, "version", "component", actionContext.Logger).Return(errors.New("LabelNamespaces error"))
-		action := MainReconcileAction{performerCreatorFn(&performer)}
-
-		// when
-		err := action.Run(actionContext)
-
-		// then
-		require.Error(t, err)
-		require.Contains(t, err.Error(), "Istio Update error")
-		require.Contains(t, err.Error(), "PatchMutatingWebhook error")
-		require.Contains(t, err.Error(), "LabelNamespaces error")
-		provider.AssertCalled(t, "RenderManifest", mock.AnythingOfType("*chart.Component"))
-		performer.AssertCalled(t, "Version", mock.Anything, mock.AnythingOfType("string"), mock.AnythingOfType("string"), mock.AnythingOfType("string"), mock.AnythingOfType("*zap.SugaredLogger"))
-		performer.AssertNotCalled(t, "Install", mock.AnythingOfType("string"), mock.AnythingOfType("string"), mock.AnythingOfType("string"), mock.AnythingOfType("*zap.SugaredLogger"))
-		performer.AssertCalled(t, "Update", mock.AnythingOfType("string"), mock.AnythingOfType("string"), mock.AnythingOfType("string"), mock.AnythingOfType("*zap.SugaredLogger"))
-		performer.AssertCalled(t, "PatchMutatingWebhook", actionContext.Context, actionContext.KubeClient, actionContext.WorkspaceFactory, "version", "component", actionContext.Logger)
-		performer.AssertCalled(t, "LabelNamespaces", actionContext.Context, actionContext.KubeClient, actionContext.WorkspaceFactory, "version", "component", actionContext.Logger)
-	})
-
-	t.Run("should return an error when istio update failed but webhook patch and label namespaces were successful", func(t *testing.T) {
+	t.Run("should return an error when istio update failed and webhook patch was successful", func(t *testing.T) {
 		// given
 		factory := chartmocks.Factory{}
 		provider := chartmocks.Provider{}
@@ -505,8 +424,7 @@ func Test_ReconcileAction_Run(t *testing.T) {
 		performer := actionsmocks.IstioPerformer{}
 		performer.On("Version", mock.Anything, mock.AnythingOfType("string"), mock.AnythingOfType("string"), mock.AnythingOfType("string"), mock.AnythingOfType("*zap.SugaredLogger")).Return(istioOnTheCluster, nil)
 		performer.On("Update", actionContext.KubeClient.Kubeconfig(), mock.AnythingOfType("string"), mock.AnythingOfType("string"), actionContext.Logger).Return(errors.New("Istio Update error"))
-		performer.On("PatchMutatingWebhook", actionContext.Context, actionContext.KubeClient, actionContext.WorkspaceFactory, "version", "component", actionContext.Logger).Return(nil)
-		performer.On("LabelNamespaces", actionContext.Context, actionContext.KubeClient, actionContext.WorkspaceFactory, "version", "component", actionContext.Logger).Return(nil)
+		performer.On("PatchMutatingWebhook", actionContext.Context, actionContext.KubeClient, actionContext.Logger).Return(nil)
 		action := MainReconcileAction{performerCreatorFn(&performer)}
 
 		// when
@@ -518,11 +436,11 @@ func Test_ReconcileAction_Run(t *testing.T) {
 		provider.AssertCalled(t, "RenderManifest", mock.AnythingOfType("*chart.Component"))
 		performer.AssertCalled(t, "Version", mock.Anything, mock.AnythingOfType("string"), mock.AnythingOfType("string"), mock.AnythingOfType("string"), mock.AnythingOfType("*zap.SugaredLogger"))
 		performer.AssertNotCalled(t, "Install", mock.AnythingOfType("string"), mock.AnythingOfType("string"), mock.AnythingOfType("string"), mock.AnythingOfType("*zap.SugaredLogger"))
-		performer.AssertCalled(t, "PatchMutatingWebhook", actionContext.Context, actionContext.KubeClient, actionContext.WorkspaceFactory, "version", "component", actionContext.Logger)
-		performer.AssertCalled(t, "LabelNamespaces", actionContext.Context, actionContext.KubeClient, actionContext.WorkspaceFactory, "version", "component", actionContext.Logger)
+		performer.AssertCalled(t, "Update", mock.AnythingOfType("string"), mock.AnythingOfType("string"), mock.AnythingOfType("string"), mock.AnythingOfType("*zap.SugaredLogger"))
+		performer.AssertCalled(t, "PatchMutatingWebhook", actionContext.Context, actionContext.KubeClient, actionContext.Logger)
 	})
 
-	t.Run("should return an error when istio update and label namespaces were successful but webhook patch failed", func(t *testing.T) {
+	t.Run("should return an error when istio installation was successful and webhook patch failed", func(t *testing.T) {
 		// given
 		factory := chartmocks.Factory{}
 		provider := chartmocks.Provider{}
@@ -538,8 +456,7 @@ func Test_ReconcileAction_Run(t *testing.T) {
 		}
 		performer.On("Version", mock.Anything, mock.AnythingOfType("string"), mock.AnythingOfType("string"), mock.AnythingOfType("string"), actionContext.Logger).Return(istioOnTheCluster, nil)
 		performer.On("Update", actionContext.KubeClient.Kubeconfig(), mock.AnythingOfType("string"), mock.AnythingOfType("string"), actionContext.Logger).Return(nil)
-		performer.On("PatchMutatingWebhook", actionContext.Context, actionContext.KubeClient, actionContext.WorkspaceFactory, "version", "component", actionContext.Logger).Return(errors.New("PatchMutatingWebhook error"))
-		performer.On("LabelNamespaces", actionContext.Context, actionContext.KubeClient, actionContext.WorkspaceFactory, "version", "component", actionContext.Logger).Return(nil)
+		performer.On("PatchMutatingWebhook", actionContext.Context, actionContext.KubeClient, actionContext.Logger).Return(errors.New("PatchMutatingWebhook error"))
 		action := MainReconcileAction{performerCreatorFn(&performer)}
 
 		// when
@@ -552,11 +469,10 @@ func Test_ReconcileAction_Run(t *testing.T) {
 		performer.AssertCalled(t, "Version", mock.Anything, mock.AnythingOfType("string"), mock.AnythingOfType("string"), mock.AnythingOfType("string"), mock.AnythingOfType("*zap.SugaredLogger"))
 		performer.AssertNotCalled(t, "Install", mock.Anything, mock.Anything, mock.Anything, mock.AnythingOfType("*zap.SugaredLogger"))
 		performer.AssertCalled(t, "Update", mock.AnythingOfType("string"), mock.AnythingOfType("string"), mock.AnythingOfType("string"), mock.AnythingOfType("*zap.SugaredLogger"))
-		performer.AssertCalled(t, "PatchMutatingWebhook", actionContext.Context, actionContext.KubeClient, actionContext.WorkspaceFactory, "version", "component", actionContext.Logger)
-		performer.AssertCalled(t, "LabelNamespaces", actionContext.Context, actionContext.KubeClient, actionContext.WorkspaceFactory, "version", "component", actionContext.Logger)
+		performer.AssertCalled(t, "PatchMutatingWebhook", actionContext.Context, actionContext.KubeClient, actionContext.Logger)
 	})
 
-	t.Run("should return an error when istio update and webhook patch were successful but label namespaces failed", func(t *testing.T) {
+	t.Run("should return an error when istio installation was successful and webhook patch failed", func(t *testing.T) {
 		// given
 		factory := chartmocks.Factory{}
 		provider := chartmocks.Provider{}
@@ -571,9 +487,8 @@ func Test_ReconcileAction_Run(t *testing.T) {
 			DataPlaneVersion: "1.0.0",
 		}
 		performer.On("Version", mock.Anything, mock.AnythingOfType("string"), mock.AnythingOfType("string"), mock.AnythingOfType("string"), actionContext.Logger).Return(istioOnTheCluster, nil)
-		performer.On("Update", actionContext.KubeClient.Kubeconfig(), mock.AnythingOfType("string"), mock.AnythingOfType("string"), actionContext.Logger).Return(nil)
-		performer.On("PatchMutatingWebhook", actionContext.Context, actionContext.KubeClient, actionContext.WorkspaceFactory, "version", "component", actionContext.Logger).Return(nil)
-		performer.On("LabelNamespaces", actionContext.Context, actionContext.KubeClient, actionContext.WorkspaceFactory, "version", "component", actionContext.Logger).Return(errors.New("LabelNamespaces error"))
+		performer.On("Update", actionContext.KubeClient.Kubeconfig(), mock.AnythingOfType("string"), mock.AnythingOfType("string"), actionContext.Logger).Return(errors.New("Istio Update error"))
+		performer.On("PatchMutatingWebhook", actionContext.Context, actionContext.KubeClient, actionContext.Logger).Return(errors.New("PatchMutatingWebhook error"))
 		action := MainReconcileAction{performerCreatorFn(&performer)}
 
 		// when
@@ -581,13 +496,13 @@ func Test_ReconcileAction_Run(t *testing.T) {
 
 		// then
 		require.Error(t, err)
-		require.Contains(t, err.Error(), "LabelNamespaces error")
+		require.Contains(t, err.Error(), "PatchMutatingWebhook error")
+		require.Contains(t, err.Error(), "Istio Update error")
 		provider.AssertCalled(t, "RenderManifest", mock.AnythingOfType("*chart.Component"))
 		performer.AssertCalled(t, "Version", mock.Anything, mock.AnythingOfType("string"), mock.AnythingOfType("string"), mock.AnythingOfType("string"), mock.AnythingOfType("*zap.SugaredLogger"))
 		performer.AssertNotCalled(t, "Install", mock.Anything, mock.Anything, mock.Anything, mock.AnythingOfType("*zap.SugaredLogger"))
 		performer.AssertCalled(t, "Update", mock.AnythingOfType("string"), mock.AnythingOfType("string"), mock.AnythingOfType("string"), mock.AnythingOfType("*zap.SugaredLogger"))
-		performer.AssertCalled(t, "PatchMutatingWebhook", actionContext.Context, actionContext.KubeClient, actionContext.WorkspaceFactory, "version", "component", actionContext.Logger)
-		performer.AssertCalled(t, "LabelNamespaces", actionContext.Context, actionContext.KubeClient, actionContext.WorkspaceFactory, "version", "component", actionContext.Logger)
+		performer.AssertCalled(t, "PatchMutatingWebhook", actionContext.Context, actionContext.KubeClient, actionContext.Logger)
 	})
 
 }
