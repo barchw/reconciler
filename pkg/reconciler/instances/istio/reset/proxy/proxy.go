@@ -53,25 +53,27 @@ func (i *DefaultIstioProxyReset) Run(cfg config.IstioProxyConfig) error {
 		}
 		cfg.Log.Debugf("Found %d pods in total", len(pods.Items))
 		podsInMesh, err := i.gatherer.GetPodsInIstioMesh(cfg.Kubeclient, retryOpts, cfg.SidecarInjectionByDefaultEnabled)
-
-		//podsWithDifferentImage := i.gatherer.GetPodsWithDifferentImage(*podsInMesh, image)
-
-		//cfg.Log.Debugf("Found %d pods with different istio proxy image (%s)", len(podsWithDifferentImage.Items), image)
-		podsWithoutAnnotation := data.RemoveAnnotatedPods(*podsInMesh, pod.AnnotationResetWarningKey)
-		if len(podsInMesh.Items) >= 1 && len(podsWithoutAnnotation.Items) == 0 {
-			cfg.Log.Warnf(
-				"Found %d pods belong to istio mesh, but we cannot update sidecar proxy image for them. Look for pods with annotation %s,"+
-					" resolve the problem and remove the annotation",
-				len(podsInMesh.Items),
-				pod.AnnotationResetWarningKey,
-			)
+		if err != nil {
+			return err
 		}
-		if len(podsWithoutAnnotation.Items) >= 1 {
-			err = i.action.Reset(cfg.Context, cfg.Kubeclient, retryOpts, podsWithoutAnnotation, cfg.Log, cfg.Debug, waitOpts)
-			if err != nil {
-				return err
+
+		if podsInMesh != nil {
+			podsWithoutAnnotation := data.RemoveAnnotatedPods(*podsInMesh, pod.AnnotationResetWarningKey)
+			if len(podsInMesh.Items) >= 1 && len(podsWithoutAnnotation.Items) == 0 {
+				cfg.Log.Warnf(
+					"Found %d pods belong to istio mesh, but we cannot update sidecar proxy image for them. Look for pods with annotation %s,"+
+						" resolve the problem and remove the annotation",
+					len(podsInMesh.Items),
+					pod.AnnotationResetWarningKey,
+				)
 			}
-			cfg.Log.Infof("Proxy reset for %d pods successfully done", len(podsWithoutAnnotation.Items))
+			if len(podsWithoutAnnotation.Items) >= 1 {
+				err = i.action.Reset(cfg.Context, cfg.Kubeclient, retryOpts, podsWithoutAnnotation, cfg.Log, cfg.Debug, waitOpts)
+				if err != nil {
+					return err
+				}
+				cfg.Log.Infof("Proxy reset for %d pods successfully done", len(podsWithoutAnnotation.Items))
+			}
 		}
 	}
 

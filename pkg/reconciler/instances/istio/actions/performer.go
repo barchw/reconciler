@@ -346,6 +346,10 @@ func (c *DefaultIstioPerformer) ResetProxy(context context.Context, kubeConfig s
 	}
 
 	sidecarInjectionEnabledByDefault, err := isSidecarInjectionNamespacesByDefaultEnabled(workspace, branchVersion, istioChart)
+	if err != nil {
+		return err
+	}
+
 
 	cfg := istioConfig.IstioProxyConfig{
 		IsUpdate:                         canUpdate,

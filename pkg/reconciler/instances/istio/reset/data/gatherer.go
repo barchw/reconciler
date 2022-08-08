@@ -96,7 +96,7 @@ func (i *DefaultGatherer) GetPodsInIstioMesh(kubeClient kubernetes.Interface, re
 		return nil
 	}, retryOpts...)
 	if err != nil {
-		return podsList, err
+		return nil, err
 	}
 
 	err = retry.Do(func() error {
@@ -146,10 +146,10 @@ func (i *DefaultGatherer) GetPodsInIstioMesh(kubeClient kubernetes.Interface, re
 		return nil
 	}, retryOpts...)
 	if err != nil {
-		return podsList, err
+		return nil, err
 	}
 
-	return
+	return podsList, nil
 }
 
 func (i *DefaultGatherer) GetPodsWithoutSidecar(kubeClient kubernetes.Interface, retryOpts []retry.Option) (podsList v1.PodList, err error) {
